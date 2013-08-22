@@ -34,8 +34,12 @@ either expressed or implied, of the FreeBSD Project.
 
 #define OFF_MODE 0
 #define CYCLE_MODE 2
+#define ACCEL_MODE 4
 
 int mode = 0;
+static const int click = 350; // maximum time for a "short" click
+static const int hold = 700; // maximum time for a "medium" click
+static const int longhold = 2000; // maximum time for a "long" click
 
 
 hexbright hb;
@@ -46,23 +50,34 @@ void setup() {
 
 void loop() {
   hb.update();
-  static int brightness_level = 4;
+  static int brightness_level = 0;
 
   //// Button actions to recognize, one-time actions to take as a result
   if(hb.button_just_released()) {
-    if(hb.button_pressed_time()<300) { //<300 milliseconds
+    if(hb.button_pressed_time()<click) { //<300 milliseconds
       mode = CYCLE_MODE;
-      int levels[] = {0,1,250,500,750,1000};
+      int levels[] = {-1, 1,250,500,750,1000};
       brightness_level = (brightness_level+1)%6;
       hb.set_light(CURRENT_LEVEL, levels[brightness_level], 150);
     } 
   }
-  if(hb.button_pressed_time()>700) { // if held for over 700 milliseconds (whether or not it's been released), go to OFF mode
-    mode = OFF_MODE;
-    hb.set_light(CURRENT_LEVEL, OFF_LEVEL, NOW);
-    // in case we are under usb power, reset state
-    brightness_level = 4;
-  }
+    if(hb.button_pressed() && hb.button_pressed_time()>hold && hb.button_pressed_time() < longhold){ 
+      mode = OFF_MODE;
+      hb.set_light(CURRENT_LEVEL, OFF_LEVEL, NOW);
+      // in case we are under usb power, reset state
+      brightness_level = 0;
+    }
+  if(hb.button_pressed() && hb.button_pressed_time()>longhold) { 
+      if (mode == OFF_MODE) {
+        double d = hb.difference_from_down(); // (0,1)
+        int di = (int)(d*400.0); // (0,400)
+        int i = (di)/10; // (0,40)
+        i *= 50; // (0,2000)
+        i = i>1000 ? 1000 : i;
+        i = i<=0 ? 1 : i;
+        hb.set_light(CURRENT_LEVEL, i, 100);
+      } 
+  }   
 
   //// Actions over time for a given mode
   if (mode == OFF_MODE) { // charging, or turning off
